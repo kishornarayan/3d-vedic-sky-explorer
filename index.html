@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>3D Vedic Nakshatra & Rashi Explorer</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; touch-action: none; }
         #canvas-container { width: 100vw; height: 100vh; display: block; }
         
         /* UI Overlay */
@@ -301,29 +301,46 @@
             display: flex; justify-content: center; align-items: center; color: #4facfe; z-index: 999; transition: opacity 0.5s;
         }
 
-        /* --- MOBILE RESPONSIVENESS --- */
-        @media (max-width: 768px) {
-            #ui-layer { top: 10px; left: 10px; right: 10px; }
-            h1 { font-size: 1.2rem; }
-            #lagna-panel { padding: 8px 10px; margin-top: 10px; }
-            #lagna-value { font-size: 1.1rem; }
-            .btn-group { flex-wrap: wrap; gap: 5px; }
-            .action-btn { padding: 6px 10px; font-size: 0.75rem; flex: 1; text-align: center; }
-            
-            #search-container { top: 10px; right: 10px; width: 180px; }
-            #search-input { padding: 8px; font-size: 0.85rem; }
-            
-            #control-panel { bottom: 10px; left: 10px; right: 10px; max-height: 45vh; min-width: auto; padding: 12px; }
-            
-            #chart-overlay { top: 60px; right: 10px; bottom: auto; transform: scale(0.65); transform-origin: top right; } 
-            
-            #time-machine-panel { bottom: 70px; padding: 8px 15px; width: 90%; max-width: 320px; box-sizing: border-box; justify-content: space-around; gap: 5px;}
-            .tm-btn { font-size: 1.1rem; }
-            .tm-select { font-size: 0.75rem; padding: 4px 6px; }
-
-            #info-popup { min-width: 220px; padding: 10px; font-size: 0.8rem; }
-            #info-popup h2 { font-size: 1.1rem; }
+        /* LANDSCAPE WARNING OVERLAY */
+        #landscape-warning {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #020205;
+            z-index: 2000;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #4facfe;
+            text-align: center;
+            padding: 20px;
+            box-sizing: border-box;
         }
+        #landscape-warning h2 { font-size: 1.5rem; margin-bottom: 10px; color: #ffcc00; }
+        #landscape-warning p { font-size: 1rem; color: #ccc; max-width: 300px; line-height: 1.4; }
+        #rotate-icon { font-size: 3rem; margin-bottom: 20px; animation: rotateAnim 2s infinite ease-in-out; }
+        @keyframes rotateAnim { 0% { transform: rotate(0deg); } 50% { transform: rotate(-90deg); } 100% { transform: rotate(0deg); } }
+
+
+        /* --- MOBILE RESPONSIVENESS --- */
+        /* Only apply these tweaks if they are in landscape but small (like a rotated phone) */
+        @media (max-height: 600px) and (orientation: landscape) {
+             #ui-layer { top: 10px; left: 10px; }
+             h1 { font-size: 1.2rem; }
+             #lagna-panel { padding: 6px 10px; margin-top: 5px; }
+             #lagna-value { font-size: 1.1rem; }
+             .btn-group { margin-top: 8px; }
+             .action-btn { padding: 4px 8px; font-size: 0.75rem; }
+             #search-container { top: 10px; right: 10px; width: 200px; }
+             #control-panel { max-height: 60vh; }
+             #chart-overlay { transform: scale(0.7); transform-origin: bottom right; right: 10px; bottom: 10px; }
+        }
+
+        /* ACTIVATE WARNING ONLY ON PORTRAIT MOBILE DEVICES */
+        @media (max-width: 768px) and (orientation: portrait) {
+            #landscape-warning { display: flex; }
+        }
+
     </style>
     
     <script src="https://unpkg.com/astronomy-engine@2.1.19/astronomy.browser.min.js"></script>
@@ -343,6 +360,12 @@
 <body>
 
     <div id="loader">Loading Celestial Sphere...</div>
+
+    <div id="landscape-warning">
+        <div id="rotate-icon">🔄</div>
+        <h2>Please Rotate Your Device</h2>
+        <p>This application is designed for panoramic viewing. For the best experience, please turn your phone to landscape mode.</p>
+    </div>
 
     <div id="ui-layer">
         <h1>Vedic Sky Explorer</h1>
@@ -720,7 +743,6 @@
             return lahiri; 
         }
 
-        // UPDATED: Calculates degree AND determines motion status
         function calculatePlanetDegrees(targetDate) {
             const ayanamsa = getAyanamsa(targetDate); 
             const astroTime = new Astronomy.AstroTime(targetDate); 
@@ -728,7 +750,6 @@
             let omega = 125.04452 - 1934.136261 * t; 
             omega = (omega % 360 + 360) % 360;
             
-            // Look exactly 1 hour into the future to check direction of movement
             const dFuture = new Date(targetDate.getTime() + 60 * 60 * 1000); 
             const astroTimeF = new Astronomy.AstroTime(dFuture);
 
@@ -753,15 +774,11 @@
                     if (p.astroBody === "Sun" || p.astroBody === "Moon") {
                         motionStr = 'Direct (Always)';
                     } else {
-                        // Compare current longitude with future longitude
                         const geoVector2 = Astronomy.GeoVector(p.astroBody, astroTimeF, true);
                         const lon2 = Astronomy.Ecliptic(geoVector2).elon;
                         let diff = lon2 - lon1;
-                        
-                        // Handle 0-degree crossing
                         if (diff > 180) diff -= 360;
                         if (diff < -180) diff += 360;
-                        
                         motionStr = diff < 0 ? 'Retrograde (Vakri)' : 'Direct (Margi)';
                     }
                 }
@@ -883,7 +900,6 @@
                 
                 let abbr = PLANET_ABBR[pSprite.userData.englishName]; 
                 
-                // ONLY affects the 2D North/South charts. Adds " (R)" for retrogrades, ignores Rahu/Ketu.
                 if (motionStatus.includes('Retrograde') && pSprite.userData.englishName !== 'North Node' && pSprite.userData.englishName !== 'South Node') {
                     abbr += ' (R)';
                 }
@@ -892,7 +908,7 @@
                 const d = Math.floor(newDegree % 30); const m = Math.floor(((newDegree % 30) - d) * 60);
                 pSprite.userData.degreeStr = `${d}° ${m}'`; pSprite.userData.rashi = rashiObj ? rashiObj.name : "Unknown"; 
                 pSprite.userData.degree = newDegree;
-                pSprite.userData.motionStr = motionStatus; // Store for popup
+                pSprite.userData.motionStr = motionStatus; 
 
                 const nakIdx = Math.floor(newDegree / (360/27)); const padaIdx = Math.floor((newDegree % (360/27)) / ((360/27)/4)) + 1;
                 pSprite.userData.nakshatraStr = `${NAKSHATRAS[nakIdx].name} (${padaIdx})`; pSprite.userData.nakshatraLord = NAKSHATRAS[nakIdx].planet;
@@ -900,7 +916,7 @@
                 exportPlanets.push({ 
                     name: `${pSprite.userData.sanskritName} (${PLANET_ABBR[pSprite.userData.englishName]})`, 
                     degree: pSprite.userData.degreeStr, 
-                    motion: motionStatus.split(' ')[0], // Captures just "Direct" or "Retrograde" for the table
+                    motion: motionStatus.split(' ')[0], 
                     rashi: rashiObj ? rashiObj.name.split(' ')[0] : 'Unknown', 
                     rashiLord: rashiObj ? rashiObj.lord : 'Unknown', 
                     nakshatra: pSprite.userData.nakshatraStr, 
@@ -952,7 +968,6 @@
             let currentStyle = document.getElementById('setting-chart-style').value; if (currentStyle === 'none') currentStyle = 'south'; 
             doc.setDrawColor(0, 51, 102); doc.setLineWidth(0.5); doc.setTextColor(0, 0, 0);
 
-            // Note: currentAstroData.planetRashis natively contains the (R) marker built in updateSky
             if (currentStyle === 'south') {
                 const s = sz / 4; doc.rect(x0, y0, sz, sz); doc.rect(x0+s, y0+s, sz-s*2, sz-s*2); doc.line(x0+s, y0, x0+s, y0+sz); doc.line(x0+s*3, y0, x0+s*3, y0+sz); doc.line(x0, y0+s, x0+sz, y0+s); doc.line(x0, y0+s*3, x0+sz, y0+s*3); doc.line(x0+s*2, y0, x0+s*2, y0+s); doc.line(x0+s*2, y0+s*3, x0+s*2, y0+sz); doc.line(x0, y0+s*2, x0+s, y0+s*2); doc.line(x0+s*3, y0+s*2, x0+sz, y0+s*2);
                 const S_CENTERS = [ {cx: x0+s*1.5, cy: y0+s*0.5}, {cx: x0+s*2.5, cy: y0+s*0.5}, {cx: x0+s*3.5, cy: y0+s*0.5}, {cx: x0+s*3.5, cy: y0+s*1.5}, {cx: x0+s*3.5, cy: y0+s*2.5}, {cx: x0+s*3.5, cy: y0+s*3.5}, {cx: x0+s*2.5, cy: y0+s*3.5}, {cx: x0+s*1.5, cy: y0+s*3.5}, {cx: x0+s*0.5, cy: y0+s*3.5}, {cx: x0+s*0.5, cy: y0+s*2.5}, {cx: x0+s*0.5, cy: y0+s*1.5}, {cx: x0+s*0.5, cy: y0+s*0.5} ];
@@ -963,7 +978,6 @@
                 for (let h = 0; h < 12; h++) { const c = N_CENTERS[h]; const rashiInHouse = (currentAstroData.lagnaRashiIndex + h) % 12; doc.setFontSize(7); doc.setTextColor(150, 150, 150); doc.text((rashiInHouse + 1).toString(), c.cx, c.cy + 6, { align: 'center' }); if (currentAstroData.planetRashis[rashiInHouse] && currentAstroData.planetRashis[rashiInHouse].length > 0) { doc.setFontSize(9); doc.setTextColor(0, 0, 0); doc.text(currentAstroData.planetRashis[rashiInHouse].join(', '), c.cx, c.cy - 1, { align: 'center' }); } }
             }
 
-            // ADDED MOTION COLUMN to PDF EXPORT
             const tableCols = ["Graha (Planet)", "Degree & Min", "Motion", "Rashi (Sign)", "Rashi Lord", "Nakshatra (Pada)", "Nakshatra Lord"];
             const tableRows = currentAstroData.planetsList.map(p => [p.name, p.degree, p.motion, p.rashi, p.rashiLord, p.nakshatra, p.lord]);
             
@@ -979,17 +993,15 @@
             const lagnaDeg = calculateLagnaDegree(targetDate, lat, lon);
             const planetInfo = calculatePlanetDegrees(targetDate);
             
-            const pW = 3840; const pH = 1080; // Crisp 4K Resolution
+            const pW = 3840; const pH = 1080; 
             const canvas = document.createElement('canvas');
             canvas.width = pW; canvas.height = pH;
             const ctx = canvas.getContext('2d');
             
-            // Background Gradient
             const bgGrad = ctx.createLinearGradient(0, 0, 0, pH);
             bgGrad.addColorStop(0, '#020205'); bgGrad.addColorStop(0.5, '#0a1428'); bgGrad.addColorStop(1, '#020205');
             ctx.fillStyle = bgGrad; ctx.fillRect(0, 0, pW, pH);
             
-            // X-Coordinate mapping relative to Lagna (-180 to 180)
             const getX = (deg) => {
                 let diff = deg - lagnaDeg;
                 while(diff <= -180) diff += 360;
@@ -999,13 +1011,11 @@
             
             const midY = pH / 2;
             
-            // Ecliptic Band Background
             ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.03;
             ctx.fillRect(0, midY - 60, pW, 120);
             ctx.strokeStyle = '#ffcc00'; ctx.lineWidth = 1; ctx.globalAlpha = 0.4;
             ctx.beginPath(); ctx.moveTo(0, midY); ctx.lineTo(pW, midY); ctx.stroke();
             
-            // Draw Rashis
             ctx.font = 'bold 24px sans-serif'; ctx.textAlign = 'center';
             RASHIS.forEach(r => {
                 const x = getX(r.start);
@@ -1020,7 +1030,6 @@
                 ctx.fillText(r.name.split(' ')[0].toUpperCase(), tx, midY - 180);
             });
             
-            // Draw Nakshatras & Stars
             ctx.font = '18px sans-serif';
             NAKSHATRAS.forEach((n, i) => {
                 const startDeg = i * (360/27);
@@ -1043,7 +1052,6 @@
                 }
             });
             
-            // Center Lagna Marker
             const lx = pW / 2;
             ctx.strokeStyle = '#ff0000'; ctx.lineWidth = 2; ctx.globalAlpha = 0.8;
             ctx.beginPath(); ctx.moveTo(lx, 0); ctx.lineTo(lx, pH); ctx.stroke();
@@ -1052,7 +1060,6 @@
             ctx.fillText('LAGNA (ASC)', lx, 50);
             ctx.fillText(document.getElementById('lagna-value').innerText, lx, 85);
             
-            // Draw Planets
             ctx.font = 'bold 22px sans-serif';
             const yOffsets = [-80, -40, 0, 40, 80, -60, 20, 60, -20]; 
             NAVAGRAHA.forEach((p, idx) => {
@@ -1066,7 +1073,6 @@
                 
                 ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.stroke();
                 
-                // Add explicit (R) tag to the panorama text for backwards planets (excl nodes)
                 let nameLabel = p.sanskrit;
                 if (planetInfo[p.english].motion.includes('Retrograde') && p.english !== 'North Node' && p.english !== 'South Node') {
                     nameLabel += ' (R)';
@@ -1074,7 +1080,6 @@
                 ctx.fillStyle = '#ffffff'; ctx.fillText(nameLabel, x, py - 20);
             });
             
-            // Bottom Degree Ruler
             ctx.strokeStyle = '#555555'; ctx.lineWidth = 1;
             ctx.fillStyle = '#888888'; ctx.font = '16px sans-serif';
             for(let d = -180; d <= 180; d += 5) {
@@ -1088,7 +1093,6 @@
                 }
             }
             
-            // Header Info
             ctx.fillStyle = '#ffffff'; ctx.textAlign = 'left'; ctx.font = 'bold 36px sans-serif';
             ctx.fillText('Vedic Sky Panorama (Equirectangular Projection)', 40, 60);
             ctx.font = '24px sans-serif'; ctx.fillStyle = '#4facfe';
@@ -1101,7 +1105,6 @@
             link.click();
         });
 
-        // --- RESET VIEW LOGIC ---
         document.getElementById('reset-btn').addEventListener('click', () => { 
             hidePopup(); 
             document.getElementById('search-input').value = ''; 
@@ -1164,39 +1167,11 @@
         function resetSelectionVisuals() { if(intersectedObject) { intersectedObject.material.color.setHex(intersectedObject.userData.color || 0xffffff); const bs = intersectedObject.userData.baseScale || 1; intersectedObject.scale.set(bs, bs, 1); intersectedObject = null; } }
         
         function showStarPopup(starObj, x, y) { resetSelectionVisuals(); intersectedObject = starObj; starObj.material.color.setHex(0x4facfe); starObj.scale.set(6, 6, 1); document.querySelectorAll('.planet-data, .bhava-data, .rashi-data').forEach(el => el.classList.add('hidden-row')); document.querySelectorAll('.star-data').forEach(el => el.classList.remove('hidden-row')); document.getElementById('row-rashi').classList.remove('hidden-row'); const data = starObj.userData; document.getElementById('pop-title').innerText = data.starName; document.getElementById('pop-title').style.color = '#fff'; document.getElementById('pop-subtitle').innerText = data.nakshatra + " Nakshatra"; document.getElementById('pop-id').innerText = data.starID; document.getElementById('pop-role').innerText = data.role; document.getElementById('pop-planet-lord').innerText = data.planet; document.getElementById('pop-deity').innerText = data.deity; document.getElementById('pop-symbol').innerText = data.symbol; const rashiElem = document.getElementById('pop-rashi'); rashiElem.innerText = data.rashi.split(' ')[0]; rashiElem.className = 'rashi-tag'; rashiElem.style.color = '#ffcc00'; rashiElem.style.borderColor = '#ffcc00'; positionPopup(x, y); }
-        
-        // UPDATED: Bind motion status and formatting to planet popup
-        function showPlanetPopup(planetObj, x, y) { 
-            resetSelectionVisuals(); intersectedObject = planetObj; planetObj.material.color.setHex(0xffffff); planetObj.scale.set(planetObj.userData.baseScale * 1.5, planetObj.userData.baseScale * 1.5, 1); 
-            document.querySelectorAll('.star-data, .bhava-data, .rashi-data').forEach(el => el.classList.add('hidden-row')); 
-            document.querySelectorAll('.planet-data').forEach(el => el.classList.remove('hidden-row')); 
-            document.getElementById('row-rashi').classList.remove('hidden-row'); 
-            
-            const data = planetObj.userData; 
-            document.getElementById('pop-title').innerText = data.englishName; 
-            document.getElementById('pop-title').style.color = '#' + data.color.toString(16).padStart(6, '0'); 
-            document.getElementById('pop-subtitle').innerText = "Navagraha"; 
-            document.getElementById('pop-planet-sanskrit').innerText = data.sanskritName; 
-            document.getElementById('pop-planet-degree').innerText = data.degreeStr; 
-            
-            const motionElem = document.getElementById('pop-planet-motion');
-            motionElem.innerText = data.motionStr;
-            if (data.motionStr.includes('Retrograde')) {
-                motionElem.style.color = '#ff4444'; // Red for Vakri
-            } else {
-                motionElem.style.color = '#44ff44'; // Green for Margi
-            }
-
-            document.getElementById('pop-planet-nakshatra').innerText = data.nakshatraStr; 
-            document.getElementById('pop-planet-nak-lord').innerText = data.nakshatraLord; 
-            document.getElementById('pop-planet-drishti').innerText = data.drishtiStr; 
-            const rashiElem = document.getElementById('pop-rashi'); rashiElem.innerText = data.rashi.split(' ')[0]; rashiElem.className = 'rashi-tag planet-tag'; 
-            positionPopup(x, y); 
-        }
-
+        function showPlanetPopup(planetObj, x, y) { resetSelectionVisuals(); intersectedObject = planetObj; planetObj.material.color.setHex(0xffffff); planetObj.scale.set(planetObj.userData.baseScale * 1.5, planetObj.userData.baseScale * 1.5, 1); document.querySelectorAll('.star-data, .bhava-data, .rashi-data').forEach(el => el.classList.add('hidden-row')); document.querySelectorAll('.planet-data').forEach(el => el.classList.remove('hidden-row')); document.getElementById('row-rashi').classList.remove('hidden-row'); const data = planetObj.userData; document.getElementById('pop-title').innerText = data.englishName; document.getElementById('pop-title').style.color = '#' + data.color.toString(16).padStart(6, '0'); document.getElementById('pop-subtitle').innerText = "Navagraha"; document.getElementById('pop-planet-sanskrit').innerText = data.sanskritName; document.getElementById('pop-planet-degree').innerText = data.degreeStr; const motionElem = document.getElementById('pop-planet-motion'); motionElem.innerText = data.motionStr; if (data.motionStr.includes('Retrograde')) { motionElem.style.color = '#ff4444'; } else { motionElem.style.color = '#44ff44'; } document.getElementById('pop-planet-nakshatra').innerText = data.nakshatraStr; document.getElementById('pop-planet-nak-lord').innerText = data.nakshatraLord; document.getElementById('pop-planet-drishti').innerText = data.drishtiStr; const rashiElem = document.getElementById('pop-rashi'); rashiElem.innerText = data.rashi.split(' ')[0]; rashiElem.className = 'rashi-tag planet-tag'; positionPopup(x, y); }
         function showRashiPopup(hitBoxObj, x, y) { resetSelectionVisuals(); const rashiNameFull = hitBoxObj.userData.name; const parts = rashiNameFull.split('('); document.querySelectorAll('.star-data, .planet-data, .bhava-data').forEach(el => el.classList.add('hidden-row')); document.querySelectorAll('.rashi-data').forEach(el => el.classList.remove('hidden-row')); document.getElementById('row-rashi').classList.add('hidden-row'); document.getElementById('pop-title').innerText = parts[0].trim(); document.getElementById('pop-title').style.color = '#ffcc00'; document.getElementById('pop-subtitle').innerText = "English: " + (parts[1] ? parts[1].replace(')', '').trim() : ""); const rashiObj = RASHIS.find(r => r.name === rashiNameFull); document.getElementById('pop-rashi-lord').innerText = rashiObj ? rashiObj.lord : "Unknown"; positionPopup(x, y); }
         function showBhavaPopup(bhavaObj, x, y) { resetSelectionVisuals(); intersectedObject = bhavaObj; bhavaObj.material.color.setHex(0xffffff); bhavaObj.scale.set(1.5, 1.5, 1.5); document.querySelectorAll('.star-data, .planet-data, .rashi-data').forEach(el => el.classList.add('hidden-row')); document.querySelectorAll('.bhava-data').forEach(el => el.classList.remove('hidden-row')); document.getElementById('row-rashi').classList.remove('hidden-row'); const data = bhavaObj.userData; if(data.bhavaNum === 1) { document.getElementById('pop-title').innerText = "1st Bhava (Lagna)"; } else { let suffix = "th"; if(data.bhavaNum===2)suffix="nd"; else if(data.bhavaNum===3)suffix="rd"; document.getElementById('pop-title').innerText = `${data.bhavaNum}${suffix} Bhava`; } document.getElementById('pop-title').style.color = '#ffd700'; document.getElementById('pop-subtitle').innerText = "Equal House Segment"; document.getElementById('pop-bhava-span').innerText = data.cuspDegStr; const occString = data.planets.length > 0 ? data.planets.join(', ') : "None"; document.getElementById('pop-bhava-planets').innerText = occString; const rashiElem = document.getElementById('pop-rashi'); rashiElem.innerText = data.rashi.split(' ')[0]; rashiElem.className = 'rashi-tag'; rashiElem.style.color = '#ffcc00'; rashiElem.style.borderColor = '#ffcc00'; positionPopup(x, y); }
         
+        // SMART MOBILE BOUNDARY DETECTION
         function positionPopup(x, y) { 
             const popup = document.getElementById('info-popup'); 
             popup.style.display = 'block'; 
